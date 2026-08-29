@@ -13,16 +13,19 @@ import os
 import sqlite3
 import uuid
 import pandas as pd
-import matplotlib
-matplotlib.use("Agg")  # non-interactive backend - no display needed, just saves files
-import matplotlib.pyplot as plt
-import openpyxl
-from openpyxl.chart import BarChart, Reference
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_core.tools import tool
+# NOTE: matplotlib and openpyxl are intentionally NOT imported here at the
+# top of the file. They're only imported inside chart_generation_tool and
+# report_generation_tool respectively. This matters on memory-constrained
+# hosting (e.g. Render's free 512MB tier): loading these libraries at
+# startup for every request - even simple SQL lookups that never touch a
+# chart or report - was pushing the process over its memory limit and
+# getting SIGKILLed by the OS. Lazy-loading them only when actually used
+# keeps the baseline memory footprint much smaller.
 
 DB_PATH = "sales.db"
 CHARTS_DIR = "charts"
@@ -128,6 +131,10 @@ def chart_generation_tool(code: str) -> str:
         plt.tight_layout()
     """
     global _last_chart_path
+    import matplotlib
+    matplotlib.use("Agg")  # non-interactive backend - no display needed, just saves files
+    import matplotlib.pyplot as plt
+
     df = _get_dataframe()
     local_vars = {"df": df, "pd": pd, "plt": plt}
     try:
@@ -196,6 +203,9 @@ def report_generation_tool(code: str) -> str:
         include_chart = True
     """
     global _last_report_path
+    import openpyxl
+    from openpyxl.chart import BarChart, Reference
+
     df = _get_dataframe()
     local_vars = {"df": df, "pd": pd}
     try:
