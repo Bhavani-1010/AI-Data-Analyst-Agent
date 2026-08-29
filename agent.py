@@ -12,20 +12,21 @@ Run: python agent.py
 import os
 import sqlite3
 import uuid
-import pandas as pd
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_core.tools import tool
-# NOTE: matplotlib and openpyxl are intentionally NOT imported here at the
-# top of the file. They're only imported inside chart_generation_tool and
-# report_generation_tool respectively. This matters on memory-constrained
-# hosting (e.g. Render's free 512MB tier): loading these libraries at
-# startup for every request - even simple SQL lookups that never touch a
-# chart or report - was pushing the process over its memory limit and
-# getting SIGKILLed by the OS. Lazy-loading them only when actually used
-# keeps the baseline memory footprint much smaller.
+# NOTE: pandas, matplotlib, and openpyxl are intentionally NOT imported here
+# at the top of the file - they're only imported inside the functions that
+# actually need them. This matters on memory-constrained hosting (e.g.
+# Render's free 512MB tier): loading these libraries at startup for EVERY
+# request - even a plain SQL lookup that never touches a DataFrame, chart,
+# or report - was pushing the process over its memory limit and getting
+# SIGKILLed by the OS. Lazy-loading them only when actually used keeps the
+# baseline memory footprint much smaller, since most simple questions only
+# ever need the lightweight SQL tool.
+pd = None  # populated by _ensure_pandas() the first time any tool needs it
 
 DB_PATH = "sales.db"
 CHARTS_DIR = "charts"
@@ -61,8 +62,19 @@ db = SQLDatabase.from_uri(f"sqlite:///{DB_PATH}")
 # re-read the whole database on every call.
 _df_cache = None
 
-def _get_dataframe() -> pd.DataFrame:
+def _ensure_pandas():
+    """Imports pandas into the module-level `pd` name the first time it's
+    needed, and does nothing on subsequent calls. Keeps pandas out of memory
+    entirely for requests that only use the plain SQL tool."""
+    global pd
+    if pd is None:
+        import pandas as pd_module
+        pd = pd_module
+
+
+def _get_dataframe():
     global _df_cache
+    _ensure_pandas()
     if _df_cache is None:
         conn = sqlite3.connect(DB_PATH)
         _df_cache = pd.read_sql("SELECT * FROM sales", conn)
