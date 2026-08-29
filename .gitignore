@@ -1,0 +1,20 @@
+# --- Secrets ---
+.env
+
+# --- Python ---
+venv/
+__pycache__/
+*.pyc
+
+# --- Generated data files (recreated by build_db.py / the agent at runtime) ---
+sales.db
+charts/
+reports/
+
+# --- Node / React ---
+frontend/node_modules/
+frontend/dist/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
